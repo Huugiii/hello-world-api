@@ -1,0 +1,8 @@
+services:
+  hello-world-api:
+    container_name: hello-world-api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
