@@ -4,5 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    environment:
+      - PREFIX="Hello World !"
     ports:
       - "8080:8080"

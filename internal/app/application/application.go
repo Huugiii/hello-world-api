@@ -1,6 +1,8 @@
 package application
 
 import (
+	"os"
+
 	"github.com/gin-gonic/gin"
 	"github.com/huugiii/hello-world-api/internal/app/controller"
 	"github.com/huugiii/hello-world-api/internal/app/service"
@@ -11,7 +13,8 @@ type Application struct {
 }
 
 func (a *Application) setupRoutes() {
-	helloworldController := controller.NewHelloWorldController(service.NewHelloWorldService())
+	prefix := os.Getenv("PREFIX")
+	helloworldController := controller.NewHelloWorldController(service.NewHelloWorldService(), prefix)
 	
 	a.engine.GET("/", helloworldController.HelloWorld)
 }
