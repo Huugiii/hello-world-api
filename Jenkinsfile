@@ -1,91 +1,77 @@
 pipeline {
-    agent any
+    agent {
+        label 'docker-agent-alpine'
+    }
 
-    tools {
-        go "1.24.3"
+    parameters {
+        string(name: 'APP_NAME', defaultValue: "hello-world-api", description: "The name of the application")
+        string(name: 'BUILD_VERSION', defaultValue: "1.0.0", description: "The version of the application")
+        string(name: 'SOURCE_BRANCH', defaultValue: "main", description: "The branch of the git repository")
     }
 
     environment {
         GO111MODULE = "on"
-        APP_NAME = "hello-world-api"
-        APP_VERSION = "1.0.0"
-        DOCKER_IMAGE = "huugiii/${APP_NAME}:${APP_VERSION}"
-        DOCKER_REGISTRY = "docker.io"
         GIT_URL = "https://github.com/huugiii/${APP_NAME}.git"
-        GIT_BRANCH = "main"
+        DOCKER_IMAGE = "huugiii/${APP_NAME}:${BUILD_VERSION}"
+        DOCKER_REGISTRY = "docker.io"
+    }
+
+    triggers {
+        pollSCM('H H(0-2) * * 1')
     }
 
     stages {
-        stage('Build Go Application') {
+        stage('Validate') {
             steps {
-                echo "========Building Go Application========"
-                git url: GIT_URL, branch: GIT_BRANCH
-                sh "go build -o hello-world-api cmd/app/main.go"
-            }
-            post {  
-                success {
-                    echo "========Go build successful========"
-                    sh "ls -l"
-                }
-                failure {
-                    echo "========Go build failed========"
+                script {
+                    if (APP_NAME == null || APP_NAME == "") {
+                        error("Invalid app name")
+                    }
+                    if (BUILD_VERSION == null || BUILD_VERSION == "") {
+                        error("Invalid build version")
+                    }
+                    if (SOURCE_BRANCH == null || SOURCE_BRANCH == "") {
+                        error("Invalid source branch")
+                    }
                 }
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Checkout') {
             steps {
-                echo "========Building Docker Image========"
-                sh "docker build -t ${DOCKER_IMAGE} . --build-arg APP_NAME=${APP_NAME}"
-            }
-            post {
-                success {
-                    echo "========Docker build successful========"
-                }
-                failure {
-                    echo "========Docker build failed========"
-                }
+                echo "Checking out ${GIT_URL} [${SOURCE_BRANCH}]"
+                checkout scmGit(branches: [[name: "*/${SOURCE_BRANCH}"]], extensions: [], userRemoteConfigs: [[url: GIT_URL]])
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Build & Push Image') {
             steps {
-                echo "========Pushing Docker Image========"
-                withCredentials([usernamePassword(credentialsId: 'docker-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASSWORD')]) {
-                    sh """
-                        docker login ${DOCKER_REGISTRY} -u ${DOCKER_USER} -p ${DOCKER_PASSWORD}
-                        docker tag ${DOCKER_IMAGE} ${DOCKER_REGISTRY}/${DOCKER_IMAGE}
-                        docker push ${DOCKER_REGISTRY}/${DOCKER_IMAGE}
-                    """
-                }
-            }
-            post {
-                success {
-                    echo "========Docker push successful========"
-                }
-                failure {
-                    echo "========Docker push failed========"
+                script {
+                    echo "Building image ${DOCKER_REGISTRY}/${DOCKER_IMAGE}"
+                    dockerImage = docker.build("${DOCKER_REGISTRY}/${DOCKER_IMAGE}")
+
+                    echo "Pushing image to ${DOCKER_REGISTRY} [${major}.${minor}.${patch}, ${major}.${minor}, ${major}, latest]"
+                    major = BUILD_VERSION.split(".")[0]
+                    minor = BUILD_VERSION.split(".")[1]
+                    patch = BUILD_VERSION.split(".")[2]
+                    docker.withRegistry("${DOCKER_REGISTRY}", "docker-credentials") {
+                        dockerImage.push("${major}.${minor}.${patch}")
+                        dockerImage.push("${major}.${minor}")
+                        dockerImage.push("${major}")
+                        dockerImage.push("latest")
+                    }
                 }
             }
         }
 
         stage('Deploy') {
             steps {
-                echo "========Deploying Application========"
                 sh """
                     docker pull ${DOCKER_REGISTRY}/${DOCKER_IMAGE}
                     docker stop ${APP_NAME} || true
                     docker rm ${APP_NAME} || true
-                    docker run -d --name ${APP_NAME} -p 8080:8080 ${DOCKER_REGISTRY}/${DOCKER_IMAGE}
+                    docker run -d --name ${APP_NAME} -p 8080:8080 ${DOCKER_IMAGE}
                 """
-            }
-            post {
-                success {
-                    echo "========Deployment successful========"
-                }
-                failure {
-                    echo "========Deployment failed========"
-                }
             }
         }
     }
