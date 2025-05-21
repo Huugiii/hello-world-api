@@ -3,8 +3,8 @@ FROM alpine:latest
 ARG APP_NAME
 
 WORKDIR /app
-COPY ${APP_NAME} /app/${APP_NAME}
+COPY ${APP_NAME} ./app
 
 EXPOSE 8080
 
-CMD ["./${APP_NAME}"]
+CMD ["./app"]

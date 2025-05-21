@@ -9,7 +9,7 @@ pipeline {
         GO111MODULE = "on"
         APP_NAME = "hello-world-api"
         APP_VERSION = "1.0.0"
-        DOCKER_IMAGE = "hello-world-api:${APP_VERSION}"
+        DOCKER_IMAGE = "huugiii/${APP_NAME}:${APP_VERSION}"
         DOCKER_REGISTRY = "docker.io"
         GIT_URL = "https://github.com/huugiii/${APP_NAME}.git"
         GIT_BRANCH = "main"
